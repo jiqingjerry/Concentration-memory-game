@@ -1,26 +1,17 @@
-console.log('hello world')
-
 const express = require('express')
-const cookieParser = require('cookie-parser')
-const session = require('express-session')
 const WebSocket = require('ws')
-const parser = require('body-parser')
-const http = require('http')
-const uuid = require('uuid')
 
 const app = express()
 const map = new Map();
 
 app.use('/static', express.static('app/public'))
-app.use(parser.urlencoded({ extended: true }))
-app.use(cookieParser())
-app.use(session({ secret: '123', resave: false, saveUninitialized: true }))
 
 var peers = []
 var curPlayer = 0
 var playerSockets = new Map()
 var gameStarted = false
 var curTurn = []
+var total = 0
 
 function createDeck() {
 	var deck = []
@@ -35,18 +26,8 @@ function createDeck() {
 	}
 	return deck
 }
-
 var deck = createDeck()
 
-app.get('/', function(req, res) {
-	res.sendFile(__dirname + "/index.html")
-})
-
-app.post('/', function(req, res) {
-
-})
-
-const server = http.createServer()
 const wss = new WebSocket.Server({ port: 8080 })
 
 wss.getUniqueID = function () {
@@ -57,16 +38,16 @@ wss.getUniqueID = function () {
 };
 
 wss.on('connection', function connection(ws, request) {
-	ws.id = wss.getUniqueID()
 	ws.on('message', function incoming(message) {
 		messageData = JSON.parse(message)
-		console.log(message)
-		sessionId = ws.id
+		sessionId = wss.getUniqueID()
 		user_id = wss.getUniqueID()
 		name = messageData.payload.user_name
-		console.log('current message kind: ' + messageData.kind)
+		// console.log('current message kind: ' + messageData.kind)
 	    if(messageData.kind === 'auth') {
-    		console.log('send auth')
+    		// ******************************************************
+    		// Auth Response
+    		// ******************************************************
     		ws.send(JSON.stringify({
     			kind: 'auth.response',
     			payload: {
@@ -84,9 +65,12 @@ wss.on('connection', function connection(ws, request) {
     				}
     			}
     		}))
+    		// ******************************************************
+    		// Tell other players a new player joined
+    		// ******************************************************
     		wss.clients.forEach(function each(client) {
     			if (client !== ws && client.readyState === WebSocket.OPEN) {
-    				console.log('new participant')
+    				// console.log('new participant')
     				client.send(JSON.stringify({
     					kind: 'participant_joined',
     					payload: {
@@ -97,45 +81,64 @@ wss.on('connection', function connection(ws, request) {
     			}
     		})
     		peers.push({session_id: sessionId, user: {id: user_id, display_name: name}})
-    		// playerSockets[sessionId] = ws
     	} else if (messageData.kind === 'start_game') {
-    		console.log('send game start')
+    		// ******************************************************
+    		// Start Game
+    		// ******************************************************
     		sendToAll(JSON.stringify({
     			kind: 'game_started'
     		}))
     		nextPlayer()
     		gameStarted = true
 	    } else if (messageData.kind === 'reveal') {
+	    	// ******************************************************
+    		// Handles card flipping
+    		// ******************************************************
 	    	curTurn.push(messageData.payload.index)
-	    	console.log('send reveal')
 	    	sendToAll(JSON.stringify({
 	    		kind: 'reveal_card',
     			card_id: messageData.payload.index
 	    	}))
 	    	if (curTurn.length === 2) {
+	    		// ******************************************************
+	    		// Check when two cards has been flipped
+	    		// 1. check for match
+	    		// 2. move to next player's turn
+	    		// 3. end the game when all cards have been matched
+	    		// ******************************************************
 	    		if (curTurn[0] === curTurn[1]) {
-	    			curTurn = curTurn[0]
-	    		} else if (deck[curTurn[0]] === deck[curTurn[1]]) {
-	    			data = JSON.stringify({
-	    				kind: 'matched',
-	    				card1: curTurn[0],
-	    				card2: curTurn[1]
-	    			})
+	    			curTurn = [curTurn[0]]
 	    		} else {
-	    			data = JSON.stringify({
-	    				kind: 'not_matched',
-	    				card1: curTurn[0],
-	    				card2: curTurn[1]
-	    			})
-	    		}
-	    		setTimeout(function () {
-    				sendToAll(data)
-    				nextPlayer()
-    			}, 1000)
-	    		curTurn = []
+	    			if (deck[curTurn[0]] === deck[curTurn[1]]) {
+		    			data = JSON.stringify({
+		    				kind: 'matched',
+		    				card1: curTurn[0],
+		    				card2: curTurn[1]
+		    			})
+		    			total += 2
+		    		} else {
+		    			data = JSON.stringify({
+		    				kind: 'not_matched',
+		    				card1: curTurn[0],
+		    				card2: curTurn[1]
+		    			})
+		    		}
+		    		if (total === deck.length) {
+		    			setTimeout(function () {
+		    				sendToAll(data)
+		    				endGame()
+		    			}, 1000)
+		    		} else {
+		    			setTimeout(function () {
+		    				sendToAll(data)
+		    				nextPlayer()
+		    			}, 1000)
+			    		curTurn = []
+		    		}
+		    	}
 	    	}
 	    }
-	    console.log(peers)
+	    // console.log(deck)
 
 	})
 })
@@ -159,6 +162,25 @@ function nextPlayer() {
 		curPlayer++
 	}
 }
+
+function endGame() {
+	gameStarted = false
+	total = 0
+	curPlayer = 0
+	curTurn = []
+	deck = createDeck()
+	sendToAll(JSON.stringify({
+		kind: 'game_stopped'
+	}))
+}
+
+app.get('/', function(req, res) {
+	res.sendFile(__dirname + "/index.html")
+})
+
+app.post('/', function(req, res) {
+
+})
 
 app.listen(3000, function() {
 	console.log('running on 3000')

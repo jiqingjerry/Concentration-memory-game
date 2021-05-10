@@ -1,5 +1,7 @@
 # concentration-stub
-This is a javascript client for a multiplayer Concentration-style game https://en.wikipedia.org/wiki/Concentration_(card_game).
+This is a web app for multiplayer Concentration-style game https://en.wikipedia.org/wiki/Concentration_(card_game).
+
+Client code is provided by Alexey Chernikov.
 
 The goal of this turn-based memory game is to find matching pairs of cards, which are presented face down on a grid.
 
@@ -52,7 +54,7 @@ The client is built to connect to a remote socket and send and receive JSON even
 - participant_left
 ```
 {
-  kind: "participant_left"
+  kind: "pagirticipant_left"
   payload: {
     session_id,
     user: {id, display_name}
@@ -61,33 +63,3 @@ The client is built to connect to a remote socket and send and receive JSON even
 ```
 - `{kind: "game_started"}`
 - `{kind: "game_stopped"}`
-
-## Other notes
-### Client-server identification
-Each client is only connected to 1 game session, so they don't send any sort of identifiers for the game room. The server should determine a user by their socket.
-
-### Unhandled events
-Some events are unhandled by the client, and bubbled upstream via the EventTarget API https://developer.mozilla.org/en-US/docs/Web/API/EventTarget - i.e. via `dispatchEvent(event)`.
-
-These events should at least include:
-- a card being revealed (the server determines whether that is allowed to happen when a client requests it, and broadcasts the event in case it does happen)
-- a player's score changing
-- the game being finished due to all cards being revealed
-- the turn being passed to a certain player
-
-### Heartbeats
-The client supports heartbeats - it sends a `{kind: "ping"}` event every ~30 seconds, and if it doesnt receive a `{kind: "pong"}` event within ~60 seconds, it disconnects.
-This is disabled by default, but can be optionally enabled if the server supports it.
-
-### Cli client
-This client comes with a CLI client that can be launched with
-```npm run client```
-
-It relies on `--experimental-repl-await`, so it requires Node 10+ https://github.com/nodejs/node/issues/13209#issuecomment-385852791
-
-This can be helpful to test the server, send arbitrary events to it.
-
-### ES6-style modules and mjs
-The client code here uses the `.mjs` extension - https://v8.dev/features/modules#mjs
-
-The primary reason is so that it can be used both in the web and as a cli client.

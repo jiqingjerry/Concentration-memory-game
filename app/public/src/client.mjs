@@ -48,9 +48,7 @@ class Client extends EventTarget {
         try {
           const event = new ClientReceivedEvent(this, JSON.parse(message.data))
           this.handleEvent(event)
-          // console.log('handled')
           this.dispatchEvent(event)
-          // console.log('dispatched')
         } catch(e) {
           console.log(e)
         }
@@ -155,14 +153,11 @@ class Client extends EventTarget {
     }
 
     handleEvent(event) {
-      console.log('handling ' + event.kind)
       if(event.kind === 'auth.response') {
-        console.log(event.payload)
         this.onAuthResponse(event)
         return
       }
       if(!this.peerData) {
-        // console.log('no peerData')
         return
       }
 
@@ -182,19 +177,15 @@ class Client extends EventTarget {
         // 6. A broadcasts its join event
         // (7. B broadcasts its join event)
 
-          console.log(event.payload)
           this.peerData.updatePeer(event.payload)
           break
         case 'participant_left':
-          console.log(event.payload)
           this.peerData.removePeer(event.payload)
           break
         case 'game_started':
-          // console.log(event.payload)
           this.roomData.setRoomIsStarted()
           break
         case 'game_stopped':
-          console.log(event.payload)
           this.roomData.setRoomIsStopped()
           break
         case 'pong':
